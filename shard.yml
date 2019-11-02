@@ -1,0 +1,9 @@
+name: taro
+version: 0.1.0
+
+authors:
+  - Kingsley Hendrickse <kingsley.hendrickse@gmail.com>
+    
+crystal: 0.31.1
+
+license: MIT

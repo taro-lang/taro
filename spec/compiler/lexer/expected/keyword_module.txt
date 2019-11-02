@@ -1,0 +1,7 @@
+Module (module) line: 0, length: 6, position: (0,5)
+Space ( ) line: 0, length: 1, position: (6,6)
+Identifier (MyModule) line: 0, length: 8, position: (7,14)
+Space ( ) line: 0, length: 1, position: (15,15)
+LBrace ({) line: 0, length: 1, position: (16,16)
+Space ( ) line: 0, length: 2, position: (17,18)
+RBrace (}) line: 0, length: 1, position: (19,19)
