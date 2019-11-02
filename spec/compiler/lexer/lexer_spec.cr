@@ -20,14 +20,14 @@ def assert_file(source_file_name)
 end
 
 describe Lexer do
-  # it "should correctly parse keywords" do
-  #   assert_file("keyword_module")
-  # end
+  it "should correctly parse keywords" do
+    # assert_file("keyword_module")
+  end
 
   it "should correctly parse literals" do
     # assert_file("literal_string")
-    # assert_file("literal_number")
-    assert_file("literal_float")
+    assert_file("literal_number")
+    # assert_file("literal_float")
   end
 
   # it "should correctly parse separators" do

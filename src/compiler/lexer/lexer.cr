@@ -91,13 +91,21 @@ module ::Taro::Compiler::Lexer
       LexedFile.new(source_file.file_path, source_file.file_content, tokens)
     end
 
+    # implement string literal parser
+    # implemtn boolean literal parser
+    # implement single line comment parser
+    # implement multi line comment parser
+    # implement multi line nested comment parser
 
     private def parse_float_literals(line, line_number, excludes = [] of Int32) : LexingResult
       tokens = [] of Token
-      _parse_internal(line, excludes, ->(c : Char) { c.number? }).each do |group|
+      _parse_internal(line, excludes, ->(c : Char) { c.number? || c.to_s == "." || c.to_s == "-" }).each do |group|
+        # check here if contains '-' 
+        # if does it can only be one of them and must be at the start (filter out others and update group)
+        # if has - TokenType should be NegativeFloat else PositiveFloat 
         word = group.map(&.value).join("")
         indices = group.map(&.index)
-        tokens << Token.new(TokenType.new("Number", word), line_number, group.size, indices.min, indices.max)
+        tokens << Token.new(TokenType.new("Float", word), line_number, group.size, indices.min, indices.max)
       end
 
       LexingResult.new(tokens, exclusions(tokens, excludes))
@@ -105,7 +113,10 @@ module ::Taro::Compiler::Lexer
 
     private def parse_number_literals(line, line_number, excludes) : LexingResult
       tokens = [] of Token
-      _parse_internal(line, excludes, ->(c : Char) { c.number? }).each do |group|
+      _parse_internal(line, excludes, ->(c : Char) { c.number? || c.to_s == "-" }).each do |group|
+        # check here if contains '-' 
+        # if does it can only be one of them and must be at the start (filter out others and update group)
+        # if has - TokenType should be NegativeNumber else PositiveNumber 
         word = group.map(&.value).join("")
         indices = group.map(&.index)
         tokens << Token.new(TokenType.new("Number", word), line_number, group.size, indices.min, indices.max)
