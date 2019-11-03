@@ -1,1 +1,7 @@
-Float (1) line: 0, length: 1, position: (0,0)
+Number (1) line: 0, length: 1, position: (0,0)
+Number (-1) line: 1, length: 2, position: (0,1)
+Number (+1) line: 2, length: 2, position: (0,1)
+Number (1) line: 3, length: 1, position: (0,0)
+Plus (+) line: 3, length: 1, position: (1,1)
+Number (1) line: 4, length: 1, position: (0,0)
+Minus (-) line: 4, length: 1, position: (1,1)

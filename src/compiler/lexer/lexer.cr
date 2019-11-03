@@ -70,7 +70,9 @@ module ::Taro::Compiler::Lexer
         scanner = StringScanner.new(line)
 
         whitespace = parse_whitespace(scanner, chars, line_number)
-        keywords = parse_keywords(scanner, chars, line_number, whitespace.excludes)
+        float_literals = parse_float_literals(scanner, chars, line_number, whitespace.excludes)
+        number_literals = parse_number_literals(scanner, chars, line_number, float_literals.excludes)
+        keywords = parse_keywords(scanner, chars, line_number, number_literals.excludes)
         separators = parse_separators(scanner, chars, line_number, keywords.excludes)
         operators = parse_operators(scanner, chars, line_number, separators.excludes)
         identifiers = parse_identifiers(scanner, chars, line_number, operators.excludes)
@@ -78,6 +80,8 @@ module ::Taro::Compiler::Lexer
 
         tokens += keywords.tokens
         tokens += whitespace.tokens
+        tokens += float_literals.tokens
+        tokens += number_literals.tokens
         tokens += separators.tokens
         tokens += operators.tokens
         tokens += identifiers.tokens
@@ -127,6 +131,44 @@ module ::Taro::Compiler::Lexer
       LexingResult.new(tokens, exclusions(tokens, excludes))
     end
 
+    private def parse_float_literals(scanner, chars, line_number, excludes)
+      scanner.reset
+      tokens = [] of Token
+      offset = 0
+      while offset <= chars.size
+        if !excludes.includes?(offset)
+          word = scanner.scan(/[+-]?([0-9]+[.])[0-9]+/)
+          if word
+            tokens << Token.new(TokenType.new("Float", word), line_number, word.size, offset, offset + (word.size - 1))
+          end
+        end
+
+        offset = scanner.offset + 1
+        scanner.offset = offset
+      end
+
+      LexingResult.new(tokens, exclusions(tokens, excludes))
+    end
+
+    private def parse_number_literals(scanner, chars, line_number, excludes)
+      scanner.reset
+      tokens = [] of Token
+      offset = 0
+      while offset <= chars.size
+        if !excludes.includes?(offset)
+          word = scanner.scan(/[+-]?[0-9]+/)
+          if word
+            tokens << Token.new(TokenType.new("Number", word), line_number, word.size, offset, offset + (word.size - 1))
+          end
+        end
+
+        offset = scanner.offset + 1
+        scanner.offset = offset
+      end
+
+      LexingResult.new(tokens, exclusions(tokens, excludes))
+    end
+
     private def parse_whitespace(scanner, chars, line_number, excludes = [] of Int32)
       scanner.reset
       tokens = [] of Token
@@ -154,7 +196,6 @@ module ::Taro::Compiler::Lexer
 
       while offset <= chars.size
         if !excludes.includes?(offset)
-
           word = scanner.check(/(\{|\}|\(|\)|\[|\]|:)/) || ""
           if Groups.is_separator?(word)
             tokens << Token.new(Groups.separators[word], line_number, word.size, offset, offset + (word.size - 1))
@@ -175,7 +216,7 @@ module ::Taro::Compiler::Lexer
 
       while offset <= chars.size
         if !excludes.includes?(offset)
-          word = scanner.check(/(<=>|==|!=|<=|>=|&&|\|\||\*\*|\*|\/|\.|%|<|>|=|\+|-)/) || ""
+          word = scanner.scan(/(<=>|==|!=|<=|>=|&&|\|\||\*\*|\*|\/|\.|%|<|>|=|\+|-)/) || ""
 
           if Groups.is_operator?(word)
             tokens << Token.new(Groups.operators[word], line_number, word.size, offset, offset + (word.size - 1))
@@ -206,6 +247,6 @@ module ::Taro::Compiler::Lexer
       (tokens.flat_map { |t| token_to_positions(t) } + excludes).sort
     end
   end
-  
+
   include TokenTypes
 end

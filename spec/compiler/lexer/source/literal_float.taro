@@ -1,2 +1,8 @@
-val number : Float = 1.1
-val negative : Float = -1.1
+1.1
+-1.1
+.1
+1
+1.
++1.1
++1
+1+

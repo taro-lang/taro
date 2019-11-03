@@ -26,8 +26,8 @@ describe Lexer do
 
   it "should correctly parse literals" do
     # assert_file("literal_string")
-    # assert_file("literal_number")
-    # assert_file("literal_float")
+    assert_file("literal_number")
+    assert_file("literal_float")
   end
 
   it "should correctly parse separators" do
@@ -38,7 +38,7 @@ describe Lexer do
   # end
 
   it "should correctly parse operators" do
-    # assert_file("operator_single_double")
+    assert_file("operator_single_double")
     # assert_file("operator_assign")
   end
 end
