@@ -1,3 +1,4 @@
+require "string_scanner"
 require "./tokens"
 
 module ::Taro::Compiler::Lexer
@@ -65,121 +66,124 @@ module ::Taro::Compiler::Lexer
 
       line_number = 0
       source_file.file_content.each_line do |line|
-        float_literals = parse_float_literals(line, line_number)
-        number_literals = parse_number_literals(line, line_number, float_literals.excludes)
-        keywords = parse_keywords(line, line_number, number_literals.excludes)
-        identifiers = parse_identifiers(line, line_number, keywords.excludes)
-        whitespace = parse_whitespace(line, line_number, identifiers.excludes)
-        separators = parse_separators(line, line_number, whitespace.excludes)
-        operators = parse_operators(line, line_number, separators.excludes)
-        unknown = parse_unknown(line, line_number, operators.excludes)
-        
-        tokens += float_literals.tokens
-        tokens += number_literals.tokens
+        chars = line.chars
+        scanner = StringScanner.new(line)
+
+        whitespace = parse_whitespace(scanner, chars, line_number)
+        keywords = parse_keywords(scanner, chars, line_number, whitespace.excludes)
+        separators = parse_separators(scanner, chars, line_number, keywords.excludes)
+        operators = parse_operators(scanner, chars, line_number, separators.excludes)
+        identifiers = parse_identifiers(scanner, chars, line_number, operators.excludes)
+        unknown = parse_unknown(line, line_number, identifiers.excludes)
+
         tokens += keywords.tokens
-        tokens += identifiers.tokens
         tokens += whitespace.tokens
         tokens += separators.tokens
         tokens += operators.tokens
+        tokens += identifiers.tokens
         tokens += unknown.tokens
 
         tokens.sort! { |a, b| [a.line_number, a.start_position] <=> [b.line_number, b.start_position] }
 
         line_number += 1
       end
-
       LexedFile.new(source_file.file_path, source_file.file_content, tokens)
     end
 
-    # implement string literal parser
-    # implemtn boolean literal parser
-    # implement single line comment parser
-    # implement multi line comment parser
-    # implement multi line nested comment parser
-
-    private def parse_float_literals(line, line_number, excludes = [] of Int32) : LexingResult
+    private def parse_keywords(scanner, chars, line_number, excludes = [] of Int32)
+      scanner.reset
       tokens = [] of Token
-      _parse_internal(line, excludes, ->(c : Char) { c.number? || c.to_s == "." || c.to_s == "-" }).each do |group|
-        # check here if contains '-' 
-        # if does it can only be one of them and must be at the start (filter out others and update group)
-        # if has - TokenType should be NegativeFloat else PositiveFloat 
-        word = group.map(&.value).join("")
-        indices = group.map(&.index)
-        tokens << Token.new(TokenType.new("Float", word), line_number, group.size, indices.min, indices.max)
-      end
-
-      LexingResult.new(tokens, exclusions(tokens, excludes))
-    end
-
-    private def parse_number_literals(line, line_number, excludes) : LexingResult
-      tokens = [] of Token
-      _parse_internal(line, excludes, ->(c : Char) { c.number? || c.to_s == "-" }).each do |group|
-        # check here if contains '-' 
-        # if does it can only be one of them and must be at the start (filter out others and update group)
-        # if has - TokenType should be NegativeNumber else PositiveNumber 
-        word = group.map(&.value).join("")
-        indices = group.map(&.index)
-        tokens << Token.new(TokenType.new("Number", word), line_number, group.size, indices.min, indices.max)
-      end
-
-      LexingResult.new(tokens, exclusions(tokens, excludes))
-    end
-
-    private def parse_keywords(line, line_number, excludes) : LexingResult
-      tokens = [] of Token
-      _parse_internal(line, excludes, ->(c : Char) { c.alphanumeric? }).each do |group|
-        word = group.map(&.value).join("")
+      offset = 0
+      while offset <= chars.size
+        word = scanner.check(/[_[:alpha:]][_[:alnum:]]*/) || ""
 
         if Groups.is_keyword?(word)
-          indices = group.map(&.index)
-          tokens << Token.new(Groups.keywords[word], line_number, group.size, indices.min, indices.max)
+          tokens << Token.new(Groups.keywords[word], line_number, word.size, offset, offset + (word.size - 1))
         end
+
+        offset = scanner.offset + 1
+        scanner.offset = offset
       end
 
       LexingResult.new(tokens, exclusions(tokens, excludes))
     end
 
-    private def parse_whitespace(line, line_number, excludes) : LexingResult
-      tokens = _parse_internal(line, excludes, ->(c : Char) { c.whitespace? }).map do |group|
-        indices = group.map(&.index)
-        Token.new(Whitespace, line_number, group.size, indices.min, indices.max)
-      end
-
-      LexingResult.new(tokens, exclusions(tokens, excludes))
-    end
-
-    private def parse_identifiers(line, line_number, excludes) : LexingResult
+    private def parse_identifiers(scanner, chars, line_number, excludes)
+      scanner.reset
       tokens = [] of Token
-      _parse_internal(line, excludes, ->(c : Char) { c.alphanumeric? }).each do |group|
-        word = group.map(&.value).join("")
-        indices = group.map(&.index)
-        tokens << Token.new(TokenType.new("Identifier", word), line_number, group.size, indices.min, indices.max)
-      end
-
-      LexingResult.new(tokens, exclusions(tokens, excludes))
-    end
-
-    private def parse_separators(line, line_number, excludes) : LexingResult
-      tokens = [] of Token
-      _parse_internal(line, excludes, ->(c : Char) { !c.alphanumeric? }).each do |group|
-        word = group.map(&.value).join("")
-        indices = group.map(&.index)
-        if Groups.is_separator?(word)
-          tokens << Token.new(Groups.separators[word], line_number, group.size, indices.min, indices.max)
+      offset = 0
+      while offset <= chars.size
+        if !excludes.includes?(offset)
+          word = scanner.scan(/[_a-zA-Z][_a-zA-Z0-9]*/)
+          if word
+            tokens << Token.new(TokenType.new("Identifier", word), line_number, word.size, offset, offset + (word.size - 1))
+          end
         end
+
+        offset = scanner.offset + 1
+        scanner.offset = offset
       end
 
       LexingResult.new(tokens, exclusions(tokens, excludes))
     end
 
-    private def parse_operators(line, line_number, excludes) : LexingResult
+    private def parse_whitespace(scanner, chars, line_number, excludes = [] of Int32)
+      scanner.reset
       tokens = [] of Token
-      _parse_internal(line, excludes, ->(c : Char) { !c.alphanumeric? }).each do |group|
-        word = group.map(&.value).join("")
-        indices = group.map(&.index)
-        if Groups.is_operator?(word)
-          tokens << Token.new(Groups.operators[word], line_number, group.size, indices.min, indices.max)
+      offset = 0
+      while offset <= chars.size
+        if !excludes.includes?(offset)
+          word = scanner.scan(/\s+/)
+
+          if word
+            tokens << Token.new(Whitespace, line_number, word.size, offset, offset + (word.size - 1))
+          end
         end
+
+        offset = scanner.offset + 1
+        scanner.offset = offset
+      end
+
+      LexingResult.new(tokens, exclusions(tokens, excludes))
+    end
+
+    private def parse_separators(scanner, chars, line_number, excludes)
+      scanner.reset
+      tokens = [] of Token
+      offset = 0
+
+      while offset <= chars.size
+        if !excludes.includes?(offset)
+
+          word = scanner.check(/(\{|\}|\(|\)|\[|\]|:)/) || ""
+          if Groups.is_separator?(word)
+            tokens << Token.new(Groups.separators[word], line_number, word.size, offset, offset + (word.size - 1))
+          end
+        end
+
+        offset = scanner.offset + 1
+        scanner.offset = offset
+      end
+
+      LexingResult.new(tokens, exclusions(tokens, excludes))
+    end
+
+    private def parse_operators(scanner, chars, line_number, excludes)
+      scanner.reset
+      tokens = [] of Token
+      offset = 0
+
+      while offset <= chars.size
+        if !excludes.includes?(offset)
+          word = scanner.check(/(<=>|==|!=|<=|>=|&&|\|\||\*\*|\*|\/|\.|%|<|>|=|\+|-)/) || ""
+
+          if Groups.is_operator?(word)
+            tokens << Token.new(Groups.operators[word], line_number, word.size, offset, offset + (word.size - 1))
+          end
+        end
+
+        offset = scanner.offset + 1
+        scanner.offset = offset
       end
 
       LexingResult.new(tokens, exclusions(tokens, excludes))
@@ -194,34 +198,6 @@ module ::Taro::Compiler::Lexer
       LexingResult.new(tokens, exclusions(tokens, excludes))
     end
 
-    private def _parse_internal(line, excludes, condition) : Array(Array(LexingContext))
-      group = [] of LexingContext
-      groups = [] of Array(LexingContext)
-      line.chars.each_with_index do |c, i|
-        next if excludes.includes?(i)
-
-        if condition.call(c)
-          if group.empty?
-            group << LexingContext.new(i, c)
-          else
-            if i == group.last.index + 1
-              group << LexingContext.new(i, c)
-            else
-              groups << group
-              group = [] of LexingContext
-              group << LexingContext.new(i, c)
-            end
-          end
-        else
-          groups << group unless group.empty?
-          group = [] of LexingContext
-        end
-      end
-
-      groups << group unless group.empty?
-      groups
-    end
-
     private def token_to_positions(token : Token) : Array(Int32)
       (token.start_position..token.end_position).to_a
     end
@@ -230,6 +206,6 @@ module ::Taro::Compiler::Lexer
       (tokens.flat_map { |t| token_to_positions(t) } + excludes).sort
     end
   end
-
+  
   include TokenTypes
 end

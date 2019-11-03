@@ -21,22 +21,24 @@ end
 
 describe Lexer do
   it "should correctly parse keywords" do
-    # assert_file("keyword_module")
+    assert_file("keyword_module")
   end
 
   it "should correctly parse literals" do
     # assert_file("literal_string")
-    assert_file("literal_number")
+    # assert_file("literal_number")
     # assert_file("literal_float")
   end
 
-  # it "should correctly parse separators" do
-  # end
+  it "should correctly parse separators" do
+    assert_file("separator_parens")
+  end
 
   # it "should correctly parse identifiers" do
   # end
 
-  # it "should correctly parse operators" do
-  #   assert_file("operator_assign")
-  # end
+  it "should correctly parse operators" do
+    # assert_file("operator_single_double")
+    # assert_file("operator_assign")
+  end
 end

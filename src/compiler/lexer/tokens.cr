@@ -74,23 +74,24 @@ module ::Taro::Compiler::Lexer::TokenTypes
 
     def self.operators
       {
-        "="   => Assign,
-        "+"   => Plus,
-        "-"   => Minus,
-        "*"   => Asterisk,
-        "**"  => Pow,
-        "/"   => Slash,
-        "."   => Dot,
-        "&&"  => And,
-        "||"  => Or,
-        "%"   => Modulo,
-        "<"   => LessThan,
-        ">"   => GreaterThan,
+        "<=>" => Compares,
         "=="  => Equal,
         "!="  => NotEqual,
         "<="  => LessThanOrEqual,
         ">="  => GreaterThanOrEqual,
-        "<=>" => Compares,
+        "&&"  => And,
+        "||"  => Or,
+        "**"  => Pow,
+        "*"   => Asterisk,
+        "/"   => Slash,
+        "."   => Dot,
+        "%"   => Modulo,
+        "<"   => LessThan,
+        ">"   => GreaterThan,
+        "="   => Assign,
+        "+"   => Plus,
+        "-"   => Minus,
+        
       }
     end
 
