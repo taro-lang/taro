@@ -1,4 +1,1 @@
-val number : Int32 = 1
-val word : String = "hello"
-var mutate : String = "mutatable"
-mutate = "something new"
+===

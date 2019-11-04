@@ -1,252 +1,287 @@
-require "string_scanner"
-require "./tokens"
+require "./analyzer"
+require "./token"
 
-module ::Taro::Compiler::Lexer
-  struct SourceFile
-    getter file_path : String
-    getter file_content : String
-
-    def initialize(@file_path, @file_content); end
-
-    def self.create(file_path : String)
-      begin
-        content = File.read(file_path)
-        SourceFile.new(file_path, content)
-      rescue e
-        raise "Error: could not read file: #{file_path} due to: #{e.message}"
-      end
-    end
-  end
-
-  struct LexedFile
-    getter file_path : String
-    getter raw_content : String
-    getter tokens : Array(Token)
-
-    def initialize(@file_path, @raw_content, @tokens); end
-  end
-
-  struct Token
-    getter type : TokenType
-    getter line_number : Int32
-    getter length : Int32
-    getter start_position : Int32
-    getter end_position : Int32
-
-    def initialize(@type : TokenType, @line_number : Int32, @length : Int32, @start_position : Int32, @end_position : Int32); end
-
-    def to_s
-      "#{@type.name} (#{@type.value}) line: #{@line_number}, length: #{@length}, position: (#{@start_position},#{@end_position})"
-    end
-  end
-
-  struct LexingResult
-    getter tokens : Array(Token)
-    getter excludes : Array(Int32)
-
-    def initialize(@tokens : Array(Token), @excludes : Array(Int32)); end
-  end
-
-  struct LexingContext
-    getter index : Int32
-    getter value : Char
-
-    def initialize(@index : Int32, @value : Char); end
-  end
-
+module ::Taro::Compiler
   class Lexer
-    def run(source_codes : Array(SourceFile)) : Array(LexedFile)
-      source_codes.map do |source_file|
-        parse(source_file)
+    enum Context
+      Initial
+      String
+    end
+
+    property analyzer : Analyzer
+    property source_file : String
+    property row : Int32
+    property column : Int32
+    property last_char : Char 
+    property current_token : Token 
+    property tokens : Array(Token) 
+    property context_stack : Array(Context)
+
+    def initialize(source : IO, source_file : String, row_start = 0, column_start = 0)
+      @analyzer = Analyzer.new(source)
+      @source_file = File.expand_path(source_file) 
+      @last_char = ' '
+      @row = row_start
+      @column = column_start
+      @current_token = advance_token
+      @buffer = IO::Memory.new
+      @tokens = [] of Token
+      @context_stack = [Context::Initial]
+    end
+
+    def lex_all
+      until @current_token.type == Token::Type::Eof
+        read_token
       end
     end
 
-    private def parse(source_file : SourceFile) : LexedFile
-      tokens = [] of Token
-
-      line_number = 0
-      source_file.file_content.each_line do |line|
-        chars = line.chars
-        scanner = StringScanner.new(line)
-
-        whitespace = parse_whitespace(scanner, chars, line_number)
-        float_literals = parse_float_literals(scanner, chars, line_number, whitespace.excludes)
-        number_literals = parse_number_literals(scanner, chars, line_number, float_literals.excludes)
-        keywords = parse_keywords(scanner, chars, line_number, number_literals.excludes)
-        separators = parse_separators(scanner, chars, line_number, keywords.excludes)
-        operators = parse_operators(scanner, chars, line_number, separators.excludes)
-        identifiers = parse_identifiers(scanner, chars, line_number, operators.excludes)
-        unknown = parse_unknown(line, line_number, identifiers.excludes)
-
-        tokens += keywords.tokens
-        tokens += whitespace.tokens
-        tokens += float_literals.tokens
-        tokens += number_literals.tokens
-        tokens += separators.tokens
-        tokens += operators.tokens
-        tokens += identifiers.tokens
-        tokens += unknown.tokens
-
-        tokens.sort! { |a, b| [a.line_number, a.start_position] <=> [b.line_number, b.start_position] }
-
-        line_number += 1
-      end
-      LexedFile.new(source_file.file_path, source_file.file_content, tokens)
+    # Move to a new token with a new buffer.
+    def advance_token
+      @current_token = Token.new(location: Location.new(@source_file, @row, @column))
     end
 
-    private def parse_keywords(scanner, chars, line_number, excludes = [] of Int32)
-      scanner.reset
-      tokens = [] of Token
-      offset = 0
-      while offset <= chars.size
-        word = scanner.check(/[_[:alpha:]][_[:alnum:]]*/) || ""
+    def token_is_empty?
+      @analyzer.buffer_value.empty?
+    end
 
-        if Groups.is_keyword?(word)
-          tokens << Token.new(Groups.keywords[word], line_number, word.size, offset, offset + (word.size - 1))
+    def current_char : Char
+      @analyzer.current_char
+    end
+
+    def current_location
+      @current_token.location
+    end
+
+    # Consume a single character from the source.
+    def read_char(save_in_buffer = true) : Char
+      last_char = current_char
+      if last_char == '\n'
+        @row += 1
+        @column = 0
+      end
+
+      @column += 1
+      @current_token.location.length += 1
+
+      @analyzer.read_char(save_in_buffer)
+    end
+
+    def skip_char : Char
+      @analyzer.skip_last_char
+      read_char
+    end
+
+    def peek_char : Char
+      @analyzer.peek_char
+    end
+
+    def finished? : Bool
+      @analyzer.finished?
+    end
+
+    def push_context(context : Context)
+      @context_stack.push(context)
+    end
+
+    def pop_context
+      @context_stack.pop
+    end
+
+    def current_context
+      @context_stack.last
+    end
+
+    def read_token
+      advance_token
+
+      case current_context
+      when Context::Initial
+        read_normal_token
+      # when Context::String
+      #   read_string_token
+      end
+
+      finalize_token
+    end
+
+    def finalize_token
+      @current_token.raw = @analyzer.buffer_value
+
+      @analyzer.buffer.clear
+      @analyzer.buffer << current_char
+
+      @tokens << @current_token
+      @current_token
+    end
+
+    def read_normal_token
+      @current_token.type = Token::Type::Identifier
+
+      case current_char
+      when '\0'
+        @current_token.type = Token::Type::Eof
+        read_char
+      when ','
+        @current_token.type = Token::Type::Comma
+        read_char
+      when '.'
+        @current_token.type = Token::Type::Point
+        read_char
+      when '&'
+        @current_token.type = Token::Type::Ampersand
+        read_char
+        if current_char == '&'
+          @current_token.type = Token::Type::AndAnd
+          read_char
         end
-
-        offset = scanner.offset + 1
-        scanner.offset = offset
+      when '|'
+        @current_token.type = Token::Type::Pipe
+        read_char
+        if current_char == '|'
+          @current_token.type = Token::Type::OrOr
+          read_char
+        end
+      when '='
+        @current_token.type = Token::Type::Assign
+        read_char
+        case current_char
+        when '='
+          @current_token.type = Token::Type::Equal
+          read_char
+        end
+      when '!'
+        @current_token.type = Token::Type::Not
+        read_char
+        if current_char == '='
+          @current_token.type = Token::Type::NotEqual
+          read_char
+        end
+      when '<'
+        @current_token.type = Token::Type::Less
+        read_char
+        if current_char == '='
+          @current_token.type = Token::Type::LessEqual
+          read_char
+        end
+      when '>'
+        @current_token.type = Token::Type::Greater
+        read_char
+        if current_char == '='
+          @current_token.type = Token::Type::GreaterEqual
+          read_char
+        end
+      when '+'
+        @current_token.type = Token::Type::Plus
+        read_char
+      when '-'
+        @current_token.type = Token::Type::Minus
+        read_char
+      when '*'
+        @current_token.type = Token::Type::Asterisk
+        read_char
+      when '/'
+        @current_token.type = Token::Type::Slash
+        read_char
+      when '%'
+        @current_token.type = Token::Type::Modulo
+        read_char
+      when '\n'
+        @current_token.type = Token::Type::NewLine
+        read_char
+        # when '"'
+        #   skip_char
+        #   push_context(Context::String)
+        #   read_string_token
+      when ':'
+        @current_token.type = Token::Type::Colon
+        read_char
+      when ';'
+        @current_token.type = Token::Type::Semi
+        read_char
+      when '('
+        @current_token.type = Token::Type::LParen
+        read_char
+      when ')'
+        @current_token.type = Token::Type::RParen
+        read_char
+      when '['
+        @current_token.type = Token::Type::LBracket
+        read_char
+      when ']'
+        @current_token.type = Token::Type::RBracket
+        read_char
+      when '{'
+        @current_token.type = Token::Type::LBrace
+        read_char
+      when '}'
+        @current_token.type = Token::Type::RBrace
+        read_char
+      when .ascii_number?
+        consume_numeric
+      when .ascii_whitespace?
+        consume_whitespace
+      else
+        consume_identifier
+        check_for_keyword
       end
-
-      LexingResult.new(tokens, exclusions(tokens, excludes))
     end
 
-    private def parse_identifiers(scanner, chars, line_number, excludes)
-      scanner.reset
-      tokens = [] of Token
-      offset = 0
-      while offset <= chars.size
-        if !excludes.includes?(offset)
-          word = scanner.scan(/[_a-zA-Z][_a-zA-Z0-9]*/)
-          if word
-            tokens << Token.new(TokenType.new("Identifier", word), line_number, word.size, offset, offset + (word.size - 1))
+    def check_for_keyword
+      if kw_type = Token::Type.keyword_map[@analyzer.buffer_value]?
+        @current_token.type = kw_type
+      end
+    end
+
+    def consume_numeric
+      has_decimal = false
+
+      loop do
+        case current_char
+        when '.'
+          if !has_decimal && peek_char.ascii_number?
+            read_char
+            has_decimal = true
+          else
+            assign_numeric_value(has_decimal)
+            break
           end
+        when '_'
+          read_char
+        when .ascii_number?
+          read_char
+        else
+          break
         end
-
-        offset = scanner.offset + 1
-        scanner.offset = offset
       end
 
-      LexingResult.new(tokens, exclusions(tokens, excludes))
+      assign_numeric_value(has_decimal)
     end
 
-    private def parse_float_literals(scanner, chars, line_number, excludes)
-      scanner.reset
-      tokens = [] of Token
-      offset = 0
-      while offset <= chars.size
-        if !excludes.includes?(offset)
-          word = scanner.scan(/[+-]?([0-9]+[.])[0-9]+/)
-          if word
-            tokens << Token.new(TokenType.new("Float", word), line_number, word.size, offset, offset + (word.size - 1))
-          end
+    private def assign_numeric_value(has_decimal)
+      @current_token.value = @analyzer.buffer_value.tr("_", "")
+      @current_token.type = has_decimal ? Token::Type::Float : Token::Type::Integer
+    end
+
+    def consume_whitespace
+      @current_token.type = Token::Type::Whitespace
+      while (c = read_char).ascii_whitespace? && c != '\n'; end
+    end
+
+    def consume_identifier
+      unless current_char.ascii_letter? || current_char == '_'
+        raise "Unexpected character `#{current_char}` for Identifier. Current buffer: `#{@analyzer.buffer_value}`."
+        # raise SyntaxError.new(current_location, "Unexpected character `#{current_char}` for Identifier. Current buffer: `#{@analyzer.buffer_value}`.")
+      end
+
+      loop do
+        if current_char.ascii_alphanumeric? || current_char == '_'
+          read_char
+        else
+          break
         end
-
-        offset = scanner.offset + 1
-        scanner.offset = offset
       end
 
-      LexingResult.new(tokens, exclusions(tokens, excludes))
-    end
-
-    private def parse_number_literals(scanner, chars, line_number, excludes)
-      scanner.reset
-      tokens = [] of Token
-      offset = 0
-      while offset <= chars.size
-        if !excludes.includes?(offset)
-          word = scanner.scan(/[+-]?[0-9]+/)
-          if word
-            tokens << Token.new(TokenType.new("Number", word), line_number, word.size, offset, offset + (word.size - 1))
-          end
-        end
-
-        offset = scanner.offset + 1
-        scanner.offset = offset
-      end
-
-      LexingResult.new(tokens, exclusions(tokens, excludes))
-    end
-
-    private def parse_whitespace(scanner, chars, line_number, excludes = [] of Int32)
-      scanner.reset
-      tokens = [] of Token
-      offset = 0
-      while offset <= chars.size
-        if !excludes.includes?(offset)
-          word = scanner.scan(/\s+/)
-
-          if word
-            tokens << Token.new(Whitespace, line_number, word.size, offset, offset + (word.size - 1))
-          end
-        end
-
-        offset = scanner.offset + 1
-        scanner.offset = offset
-      end
-
-      LexingResult.new(tokens, exclusions(tokens, excludes))
-    end
-
-    private def parse_separators(scanner, chars, line_number, excludes)
-      scanner.reset
-      tokens = [] of Token
-      offset = 0
-
-      while offset <= chars.size
-        if !excludes.includes?(offset)
-          word = scanner.check(/(\{|\}|\(|\)|\[|\]|:)/) || ""
-          if Groups.is_separator?(word)
-            tokens << Token.new(Groups.separators[word], line_number, word.size, offset, offset + (word.size - 1))
-          end
-        end
-
-        offset = scanner.offset + 1
-        scanner.offset = offset
-      end
-
-      LexingResult.new(tokens, exclusions(tokens, excludes))
-    end
-
-    private def parse_operators(scanner, chars, line_number, excludes)
-      scanner.reset
-      tokens = [] of Token
-      offset = 0
-
-      while offset <= chars.size
-        if !excludes.includes?(offset)
-          word = scanner.scan(/(<=>|==|!=|<=|>=|&&|\|\||\*\*|\*|\/|\.|%|<|>|=|\+|-)/) || ""
-
-          if Groups.is_operator?(word)
-            tokens << Token.new(Groups.operators[word], line_number, word.size, offset, offset + (word.size - 1))
-          end
-        end
-
-        offset = scanner.offset + 1
-        scanner.offset = offset
-      end
-
-      LexingResult.new(tokens, exclusions(tokens, excludes))
-    end
-
-    private def parse_unknown(line, line_number, excludes) : LexingResult
-      tokens = [] of Token
-      line.chars.each_with_index do |c, i|
-        next if excludes.includes?(i)
-        tokens << Token.new(TokenType.new("Unknown", c.to_s), line_number, 1, i, i)
-      end
-      LexingResult.new(tokens, exclusions(tokens, excludes))
-    end
-
-    private def token_to_positions(token : Token) : Array(Int32)
-      (token.start_position..token.end_position).to_a
-    end
-
-    private def exclusions(tokens, excludes)
-      (tokens.flat_map { |t| token_to_positions(t) } + excludes).sort
+      @current_token.value = @analyzer.buffer_value
     end
   end
-
-  include TokenTypes
 end
