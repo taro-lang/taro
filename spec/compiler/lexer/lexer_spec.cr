@@ -3,6 +3,7 @@ require "../../spec_helper"
 describe Lexer do
   it "lexes ok" do
     assert_token_type("(", Token::Type::LParen)
+    p tokenize("module MyModule {  }", nil)
   end
 end
 
