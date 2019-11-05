@@ -1,7 +1,9 @@
 require "spec"
+require "./token_helper"
 require "./../src/compiler/lexer/*"
 
 include Taro::Compiler
+include TokenHelper
 
 def tokenize(source : String, in_context : Lexer::Context? = nil)
   lexer = Lexer.new(IO::Memory.new(source), File.join(Dir.current, "test_source.taro"))

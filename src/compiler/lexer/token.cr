@@ -4,25 +4,33 @@ module Taro::Compiler
   class Token
 
     enum Type
-      Integer             # [0-9]+
+      # Literals
+      Integer             # [0-9][_0-9]+
       Float               # [0-9][_0-9]*\.[0-9]+
       String              # "string"
-      Char                # 'char'
-
-      Identifier          # [a-z][_a-zA-Z0-9]* 
-      Module              # module
-      Def                 # def
-
+      Char                # 'c'
       True                # true
       False               # false
+      Identifier          # [a-z][_a-zA-Z0-9]* 
 
+      # Keywords
+      Module              # module
+      Def                 # def
+      Val                 # val
+      Var                 # var
+      If                  # if
+      Else                # else
+      Record              # record
+      Public              # public
+      Const               # const
+  
+      # Operators 
       Plus                # +
       Minus               # -
       Asterisk            # *
       Pow                 # **
       Slash               # /
       Modulo              # %
-
       Assign              # =
       Not                 # !
       Less                # <
@@ -33,22 +41,22 @@ module Taro::Compiler
       Equal               # ==
       AndAnd              # &&
       OrOr                # ||
-
       Ampersand           # &
       Pipe                # |
 
+      # Separators 
       LParen              # (
       RParen              # )
-      LBrace              # {
-      RBrace              # }
-      LBracket            # [
-      RBracket            # ]
-
+      LCurly              # {
+      RCurly              # }
+      LSquare             # [
+      RSquare             # ]
       Comma               # ,
       Point               # .
       Colon               # :
       Semi                # ;
-
+      
+      # Misc
       Comment             # --
       NewLine             # \n
       Whitespace          # space, tab, etc.
@@ -64,13 +72,22 @@ module Taro::Compiler
     end
 
     def self.keywords
-      [ Module, Def ]    
+      [ Module, Def, True, False, Val, Var, If, Else, Record, Public, Const ]    
     end
 
     def self.keyword_map
       {
         "module" => Module,
         "def"    => Def,
+        "true"   => True,
+        "false"  => False,
+        "val"    => Val,
+        "var"    => Var,
+        "if"     => If,
+        "else"   => Else,
+        "record" => Record,
+        "public" => Public,
+        "const"  => Const  
       }
     end
 

@@ -6,20 +6,22 @@ module ::Taro::Compiler
     enum Context
       Initial
       String
+      CharLiteral
     end
 
     property analyzer : Analyzer
     property source_file : String
     property row : Int32
     property column : Int32
-    property last_char : Char 
-    property current_token : Token 
-    property tokens : Array(Token) 
+    property last_char : Char
+    property current_token : Token
+    property tokens : Array(Token)
     property context_stack : Array(Context)
+    property brace_stack : Array(Char)
 
     def initialize(source : IO, source_file : String, row_start = 0, column_start = 0)
       @analyzer = Analyzer.new(source)
-      @source_file = File.expand_path(source_file) 
+      @source_file = File.expand_path(source_file)
       @last_char = ' '
       @row = row_start
       @column = column_start
@@ -27,6 +29,7 @@ module ::Taro::Compiler
       @buffer = IO::Memory.new
       @tokens = [] of Token
       @context_stack = [Context::Initial]
+      @brace_stack = [] of Char
     end
 
     def lex_all
@@ -79,6 +82,46 @@ module ::Taro::Compiler
       @analyzer.finished?
     end
 
+    def push_brace(type : Symbol)
+      brace_to_push =
+        case type
+        when :paren        then '('
+        when :square       then '['
+        when :curly        then '{'
+        when :single_quote then '\''
+        when :double_quote then '"'
+        else
+          raise "Lexer bug: Attempted to push unknown brace type `#{type}`."
+        end
+
+      @brace_stack.push(brace_to_push)
+    end
+
+    # Attempts to pop the top bracing character from the stack, but only if it
+    # matches the given type. Returns false if the type does not match.
+    def pop_brace(type : Symbol)
+      brace_to_pop =
+        case type
+        when :paren        then '('
+        when :square       then '['
+        when :curly        then '{'
+        when :single_quote then '\''
+        when :double_quote then '"'
+        else
+          raise "Lexer bug: Attempted to pop unknown brace type `#{type}`."
+        end
+
+      if current_brace == brace_to_pop
+        @brace_stack.pop
+      else
+        return false
+      end
+    end
+
+    def current_brace : Char
+      @brace_stack.last? || '\0'
+    end
+
     def push_context(context : Context)
       @context_stack.push(context)
     end
@@ -97,8 +140,10 @@ module ::Taro::Compiler
       case current_context
       when Context::Initial
         read_normal_token
-      # when Context::String
-      #   read_string_token
+      when Context::String
+        read_string_token
+      when Context::CharLiteral
+        read_char_literal_token 
       end
 
       finalize_token
@@ -176,9 +221,15 @@ module ::Taro::Compiler
       when '-'
         @current_token.type = Token::Type::Minus
         read_char
+        if current_char.ascii_number?
+          consume_numeric
+        end
       when '*'
         @current_token.type = Token::Type::Asterisk
         read_char
+        if current_char == '*'
+          @current_token.type = Token::Type::Pow
+        end
       when '/'
         @current_token.type = Token::Type::Slash
         read_char
@@ -188,10 +239,16 @@ module ::Taro::Compiler
       when '\n'
         @current_token.type = Token::Type::NewLine
         read_char
-        # when '"'
-        #   skip_char
-        #   push_context(Context::String)
-        #   read_string_token
+      when '"'
+        skip_char
+        push_brace(:double_quote)
+        push_context(Context::String)
+        read_string_token
+      when '\''
+        skip_char
+        push_brace(:single_quote)
+        push_context(Context::CharLiteral)
+        read_char_literal_token
       when ':'
         @current_token.type = Token::Type::Colon
         read_char
@@ -199,22 +256,28 @@ module ::Taro::Compiler
         @current_token.type = Token::Type::Semi
         read_char
       when '('
+        push_brace(:paren)
         @current_token.type = Token::Type::LParen
         read_char
       when ')'
+        pop_brace(:paren)
         @current_token.type = Token::Type::RParen
         read_char
       when '['
-        @current_token.type = Token::Type::LBracket
+        push_brace(:square)
+        @current_token.type = Token::Type::LSquare
         read_char
       when ']'
-        @current_token.type = Token::Type::RBracket
+        pop_brace(:square)
+        @current_token.type = Token::Type::RSquare
         read_char
       when '{'
-        @current_token.type = Token::Type::LBrace
+        push_brace(:curly)
+        @current_token.type = Token::Type::LCurly
         read_char
       when '}'
-        @current_token.type = Token::Type::RBrace
+        pop_brace(:curly)
+        @current_token.type = Token::Type::RCurly
         read_char
       when .ascii_number?
         consume_numeric
@@ -282,6 +345,92 @@ module ::Taro::Compiler
       end
 
       @current_token.value = @analyzer.buffer_value
+    end
+
+    def read_char_literal_token
+      @current_token.type = Token::Type::Char
+      count = 0
+      loop do
+        raise "Error char literal must be a single character - but got: `#{@analyzer.buffer_value}`" if count > 1 
+        case current_char
+        when '\0'
+          # raise SyntaxError.new(current_location, "Unterminated char literal. Reached EOF without terminating.")
+          raise "Unterminated char literal. Reached EOF without terminating."
+        when '\''
+          skip_char
+          if pop_brace(:single_quote)
+            pop_context
+            break
+          end
+        else
+          read_char
+          count += 1
+        end
+      end
+    end  
+
+    def read_string_token
+      @current_token.type = Token::Type::String
+
+      # If the first characters of the token are an interpolation, push that
+      # context and return an Interpol_Start token.
+      # if current_char == '$'
+      #   @current_token.type = Token::Type::Interpol_Start
+      #   read_char
+      #   read_char
+      #   push_context(Context::Interpol)
+      #   return
+      # end
+
+      # Otherwise, parse until either an interpolation or ending quote is
+      # encountered.
+      loop do
+        case current_char
+        when '\0'
+          # A null character within a string literal is a syntax error.
+          # raise SyntaxError.new(current_location, "Unterminated string literal. Reached EOF without terminating.")
+          raise "Unterminated string literal. Reached EOF without terminating."
+        when '\\'
+          # Read two characters to naively support escaped characters.
+          # This ensures that escaped quotes do not terminate the string.
+          read_char
+          read_char
+          # when '$'
+          #   # Don't actually consume the start of the interpolation yet. It will
+          #   # be consumed by the next read.
+          #   if peek_char == '('
+          #     break
+          #   end
+          #   read_char
+        when '"'
+          skip_char
+          if pop_brace(:double_quote)
+            pop_context
+            break
+          end
+        else
+          read_char
+        end
+      end
+
+      replace_escape_characters(@analyzer.buffer_value)
+    end
+
+    def replace_escape_characters(raw)
+      # Replace escape codes
+      @current_token.value = raw.gsub(/\\./) do |code|
+        case code
+        when "\\n"  then '\n'
+        when "\\\"" then '"'
+        when "\\t"  then '\t'
+        when "\\e"  then '\e'
+        when "\\r"  then '\r'
+        when "\\f"  then '\f'
+        when "\\v"  then '\v'
+        when "\\b"  then '\b'
+        when "\\0"  then '\0'
+        end
+      end
     end
   end
 end
