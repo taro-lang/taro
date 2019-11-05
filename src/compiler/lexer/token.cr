@@ -23,6 +23,8 @@ module Taro::Compiler
       Record              # record
       Public              # public
       Const               # const
+      Ref                 # ref
+      Enum                # enum
   
       # Operators 
       Plus                # +
@@ -74,7 +76,7 @@ module Taro::Compiler
     end
 
     def self.keywords
-      [ Module, Def, True, False, Val, Var, If, Else, Record, Public, Const ]    
+      [ Module, Def, True, False, Val, Var, If, Else, Record, Public, Const, Ref, Enum ]    
     end
 
     def self.keyword_map
@@ -89,7 +91,9 @@ module Taro::Compiler
         "else"   => Else,
         "record" => Record,
         "public" => Public,
-        "const"  => Const  
+        "const"  => Const,  
+        "ref"    => Ref, 
+        "enum"   => Enum,
       }
     end
 

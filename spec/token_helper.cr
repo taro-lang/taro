@@ -20,6 +20,8 @@ module TokenHelper
     Token::Type::Record => "record",
     Token::Type::Public => "public",
     Token::Type::Const  => "const",
+    Token::Type::Ref    => "ref",
+    Token::Type::Enum   => "enum",
 
     # Operators
     Token::Type::Plus         => "+",
