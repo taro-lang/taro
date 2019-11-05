@@ -43,6 +43,8 @@ module Taro::Compiler
       OrOr                # ||
       Ampersand           # &
       Pipe                # |
+      LArrow              # <-
+      RArrow              # ->
 
       # Separators 
       LParen              # (

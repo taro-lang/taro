@@ -204,8 +204,12 @@ module ::Taro::Compiler
       when '<'
         @current_token.type = Token::Type::Less
         read_char
-        if current_char == '='
+        case current_char
+        when '='
           @current_token.type = Token::Type::LessEqual
+          read_char
+        when '-'
+          @current_token.type = Token::Type::LArrow
           read_char
         end
       when '>'
@@ -221,14 +225,22 @@ module ::Taro::Compiler
       when '-'
         @current_token.type = Token::Type::Minus
         read_char
-        if current_char.ascii_number?
+        case current_char
+        when .ascii_number?
           consume_numeric
+        when '>'
+          @current_token.type = Token::Type::RArrow
+          read_char
+        when '-'
+          @current_token.type = Token::Type::Comment
+          consume_single_line_comment  
         end
       when '*'
         @current_token.type = Token::Type::Asterisk
         read_char
         if current_char == '*'
           @current_token.type = Token::Type::Pow
+          read_char
         end
       when '/'
         @current_token.type = Token::Type::Slash
@@ -328,6 +340,16 @@ module ::Taro::Compiler
     def consume_whitespace
       @current_token.type = Token::Type::Whitespace
       while (c = read_char).ascii_whitespace? && c != '\n'; end
+    end
+
+    def consume_single_line_comment
+      # If the first character of the comment is a space, it is ignored. Since
+      # standard comments are written with a padding space (`-- comment`), the
+      # actual content of the comment should not include that space.
+      if current_char == ' '
+        skip_char
+      end
+      until ['\n', '\0'].includes?(current_char); read_char; end
     end
 
     def consume_identifier

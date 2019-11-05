@@ -40,6 +40,8 @@ module TokenHelper
     Token::Type::OrOr         => "||",
     Token::Type::Ampersand    => "&",
     Token::Type::Pipe         => "|",
+    Token::Type::LArrow       => "<-",
+    Token::Type::RArrow       => "->",
 
     # Separators
     Token::Type::LParen  => "(",

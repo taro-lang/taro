@@ -87,6 +87,12 @@ describe Lexer do
       end
     end
   end
+
+  describe "comments" do
+    it "lexes single line comments" do
+      assert_token_type "-- hello", Token::Type::Comment
+    end
+  end
 end
 
 private def assert_token_type(source, token_type, in_context : Lexer::Context? = nil)
