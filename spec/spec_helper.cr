@@ -1,7 +1,7 @@
 require "spec"
 require "./token_helper"
-require "./../src/all"
-
+require "../src/all"
+require "./support/nodes.cr"
 
 include Taro::Compiler
 include Taro::Compiler::Ast
@@ -18,6 +18,16 @@ def it_parses(source, *expected)
   result = parse_program(source)
   unless expected.empty?
     result.should eq(Expressions.new(*expected))
+  end
+end
+
+def it_does_not_parse(source, message = nil)
+  exception = expect_raises(ParseError) do
+    result = parse_program(source)
+  end
+
+  if message
+    (exception.message || "").downcase.should match(message)
   end
 end
 
