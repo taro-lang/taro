@@ -1,6 +1,6 @@
 require "colorize"
 
-module Taro::Compiler
+module ::Taro::Compiler
   class Location
     property file : String
     property row : Int32

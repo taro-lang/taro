@@ -1,6 +1,6 @@
-require "./location"
+require "../location"
 
-module Taro::Compiler
+module ::Taro::Compiler
   class Token
 
     enum Type
@@ -11,7 +11,8 @@ module Taro::Compiler
       Char                # 'c'
       True                # true
       False               # false
-      Identifier          # [a-z][_a-zA-Z0-9]* 
+      Identifier          # [a-z][_a-zA-Z0-9]*
+      IdentifierU         # [A-Z][a-zA-Z0-9]* 
 
       # Keywords
       Module              # module

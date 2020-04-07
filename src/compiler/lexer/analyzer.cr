@@ -1,4 +1,4 @@
-module Taro::Compiler
+module ::Taro::Compiler
   class Analyzer
     property source : IO
     property buffer : IO::Memory

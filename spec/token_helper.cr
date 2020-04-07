@@ -2,13 +2,14 @@ module TokenHelper
   STATIC_TOKENS = {
 
     # Literals
-    Token::Type::Integer    => "1",
-    Token::Type::Float      => "1.1",
-    Token::Type::String     => "\"hello\"",
-    Token::Type::Char       => "'c'",
-    Token::Type::True       => "true",
-    Token::Type::False      => "false",
-    Token::Type::Identifier => "identifier",
+    Token::Type::Integer     => "1",
+    Token::Type::Float       => "1.1",
+    Token::Type::String      => "\"hello\"",
+    Token::Type::Char        => "'c'",
+    Token::Type::True        => "true",
+    Token::Type::False       => "false",
+    Token::Type::Identifier  => "identifier",
+    Token::Type::IdentifierU => "Identifier",
 
     # Keywords
     Token::Type::Module => "module",

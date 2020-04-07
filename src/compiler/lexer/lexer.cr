@@ -1,5 +1,7 @@
 require "./analyzer"
 require "./token"
+require "../location"
+require "../exceptions"
 
 module ::Taro::Compiler
   class Lexer
@@ -295,6 +297,8 @@ module ::Taro::Compiler
         consume_numeric
       when .ascii_whitespace?
         consume_whitespace
+      when .ascii_uppercase?
+        consume_identifier_u  
       else
         consume_identifier
         check_for_keyword
@@ -357,6 +361,28 @@ module ::Taro::Compiler
         raise "Unexpected character `#{current_char}` for Identifier. Current buffer: `#{@analyzer.buffer_value}`."
         # raise SyntaxError.new(current_location, "Unexpected character `#{current_char}` for Identifier. Current buffer: `#{@analyzer.buffer_value}`.")
       end
+
+      loop do
+        if current_char.ascii_alphanumeric? || current_char == '_'
+          read_char
+        else
+          break
+        end
+      end
+
+      @current_token.value = @analyzer.buffer_value
+    end
+
+    def consume_identifier_u
+      # IdentifierU must start with an uppercase character, and may only contain
+      # letters, numbers or underscores afterwards.
+      if current_char.ascii_uppercase?
+        read_char
+      else
+        raise SyntaxError.new(current_location, "Unexpected character `#{current_char}` for IdentifierU. Current buffer: `#{@analyzer.buffer_value}`.")
+      end
+
+      @current_token.type = Token::Type::IdentifierU
 
       loop do
         if current_char.ascii_alphanumeric? || current_char == '_'
