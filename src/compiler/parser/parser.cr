@@ -57,7 +57,7 @@ module ::Taro::Compiler
         # do not have an explicit closing token, so skip the expectation of a
         # delimiter if the previous expression was a doc comment.
         # unless program.children.last.is_a?(DocComment)
-          expect_delimiter_or_eof
+        expect_delimiter_or_eof
         # end
         skip_space_and_newlines
       end
@@ -71,8 +71,8 @@ module ::Taro::Compiler
       #   parse_def
       when Token::Type::Module
         parse_module_def
-        # when Token::Type::DEFTYPE
-        #   parse_type_def
+      when Token::Type::Def
+        parse_function_def
         # when Token::Type::FN
         #   parse_anonymous_function
         # when Token::Type::MATCH
