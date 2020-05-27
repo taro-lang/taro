@@ -15,7 +15,7 @@ module ::Taro::Compiler::Parsers
     # List or Map or Record or Function or Enum
     # e.g. 
     # foo : User,  foo : List[User], foo : Map[String, User],  foo : Int -> String, foo : Map[String, Int -> String]
-    method_def.return_type = nil 
+    method_def.return_type = parse_type_restriction 
 
     skip_space_and_newlines
     expect(Token::Type::LCurly)

@@ -1,36 +1,78 @@
 module ::Taro::Compiler::Parsers
-    def parse_function_def
-      start = expect(Token::Type::Def)
-      skip_space
-      name = expect(Token::Type::Identifier).value
-  
-      method_def = FuncDef.new(name).at(start.location)
-      push_var_scope
-  
-      skip_space
-      parse_param_list(into: method_def)
-  
-      skip_space
-      # TODO - parse types 
-      # List or Map or Record or Function or Enum
-      # e.g. 
-      # foo : User,  foo : List[User], foo : Map[String, User],  foo : Int -> String, foo : Map[String, Int -> String]
-      method_def.return_type = nil 
-  
-      skip_space_and_newlines
-      expect(Token::Type::LCurly)
-      skip_space_and_newlines
-  
-      if finish = accept(Token::Type::RCurly)
-        method_def.body = Nop.new
-        pop_var_scope
-        return method_def.at_end(finish.location)
-      else
-        method_def.body = parse_code_block(Token::Type::RCurly)
-        finish = expect(Token::Type::RCurly)
-        pop_var_scope
-        return method_def.at_end(finish.location)
+  def parse_function_def
+    start = expect(Token::Type::Def)
+    skip_space
+    name = expect(Token::Type::Identifier).value
+
+    method_def = FuncDef.new(name).at(start.location)
+    push_var_scope
+
+    skip_space
+    parse_param_list(into: method_def)
+
+    skip_space
+    # TODO - parse types
+    # List or Map or Record or Function or Enum
+    # e.g.
+    # foo : User,  foo : List[User], foo : Map[String, User],  foo : Int -> String, foo : Map[String, Int -> String]
+    method_def.return_type = parse_type_restriction
+
+    skip_space_and_newlines
+    expect(Token::Type::LCurly)
+    skip_space_and_newlines
+
+    if finish = accept(Token::Type::RCurly)
+      method_def.body = Nop.new
+      pop_var_scope
+      return method_def.at_end(finish.location)
+    else
+      method_def.body = parse_code_block(Token::Type::RCurly)
+      finish = expect(Token::Type::RCurly)
+      pop_var_scope
+      return method_def.at_end(finish.location)
+    end
+  end
+
+  def parse_param_list(into target : FuncDef)
+    expect(Token::Type::LParen)
+    skip_space_and_newlines
+    unless accept(Token::Type::RParen)
+      param_index = 0
+      loop do
+        skip_space_and_newlines
+        next_param = parse_param
+        skip_space_and_newlines
+        target.params << next_param
+        param_index += 1
+
+        # if there is no comma, then this is the last param and expect a closing paren
+        unless accept(Token::Type::Comma)
+          expect(Token::Type::RParen)
+          break
+        end
       end
     end
   end
-  
+
+  def parse_param
+    param = Param.new
+
+    name = expect(Token::Type::Identifier)
+    param.name = name.value
+    push_local_var(name.value)
+    param.at(name.location)
+
+    skip_space
+    restriction = parse_type_restriction
+    param.restriction = restriction
+    param.at_end(restriction)
+    param
+  end
+
+  def parse_type_restriction
+    expect(Token::Type::Colon)
+    skip_space
+    identifier = expect(Token::Type::IdentifierU)
+    TypeRestriction.new(identifier.value)
+  end
+end

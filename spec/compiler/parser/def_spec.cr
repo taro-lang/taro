@@ -2,7 +2,7 @@ require "../../spec_helper"
 
 describe "Def" do
   it "should parse simple def" do
-    it_parses(%Q(def main {}), FuncDef.new("main"))
+    it_parses(%Q(def main() : Unit {}), FuncDef.new("main"))
   end
 
   # it "should parse a module defintion across multiple lines" do
