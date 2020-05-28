@@ -11,17 +11,18 @@ module ::Taro::Compiler::Ast
   class FuncDef < Node
     property  name         : String
     property  params       : Array(Param)
+    property  return_type  : ReturnType
     property  body         : Node
-    property! return_type  : Node?
 
-    def initialize(@name, @params = [] of Param, @body=Nop.new, *, @return_type=nil)
+    def initialize(@name, @params = [] of Param, @return_type=Unit.new, @body=Nop.new)
     end
 
     def accept_children(visitor)
       params.each(&.accept(visitor))  
+      return_type.accept(visitor)
       body.accept(visitor)
     end
 
-    def_equals_and_hash name, params, body
+    def_equals_and_hash name, params, return_type, body
   end
 end

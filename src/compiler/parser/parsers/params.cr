@@ -15,7 +15,7 @@ module ::Taro::Compiler::Parsers
     # List or Map or Record or Function or Enum
     # e.g.
     # foo : User,  foo : List[User], foo : Map[String, User],  foo : Int -> String, foo : Map[String, Int -> String]
-    method_def.return_type = parse_type_restriction
+    method_def.return_type = parse_return_type
 
     skip_space_and_newlines
     expect(Token::Type::LCurly)
@@ -55,24 +55,21 @@ module ::Taro::Compiler::Parsers
   end
 
   def parse_param
-    param = Param.new
-
     name = expect(Token::Type::Identifier)
-    param.name = name.value
-    push_local_var(name.value)
-    param.at(name.location)
-
     skip_space
-    restriction = parse_type_restriction
-    param.restriction = restriction
-    param.at_end(restriction)
+    return_type = parse_return_type
+
+    push_local_var(name.value)
+    
+    param = Param.new(name.value, return_type)
+    param.at(name.location).at_end(return_type.location)
     param
   end
 
-  def parse_type_restriction
-    expect(Token::Type::Colon)
+  def parse_return_type
+    start = expect(Token::Type::Colon)
     skip_space
-    identifier = expect(Token::Type::IdentifierU)
-    TypeRestriction.new(identifier.value)
+    name = expect(Token::Type::IdentifierU)
+    ReturnType.new(name.value).at(start.location).at_end(name.location)
   end
 end

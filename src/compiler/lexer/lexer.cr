@@ -145,7 +145,7 @@ module ::Taro::Compiler
       when Context::String
         read_string_token
       when Context::CharLiteral
-        read_char_literal_token 
+        read_char_literal_token
       end
 
       finalize_token
@@ -195,6 +195,8 @@ module ::Taro::Compiler
         when '='
           @current_token.type = Token::Type::Equal
           read_char
+        else
+          # do nothing to satify compiler warning
         end
       when '!'
         @current_token.type = Token::Type::Not
@@ -213,6 +215,8 @@ module ::Taro::Compiler
         when '-'
           @current_token.type = Token::Type::LArrow
           read_char
+        else
+          # do nothing to satify compiler warning
         end
       when '>'
         @current_token.type = Token::Type::Greater
@@ -235,7 +239,9 @@ module ::Taro::Compiler
           read_char
         when '-'
           @current_token.type = Token::Type::Comment
-          consume_single_line_comment  
+          consume_single_line_comment
+        else
+          # do nothing to remove compiler warning
         end
       when '*'
         @current_token.type = Token::Type::Asterisk
@@ -298,7 +304,7 @@ module ::Taro::Compiler
       when .ascii_whitespace?
         consume_whitespace
       when .ascii_uppercase?
-        consume_identifier_u  
+        consume_identifier_u
       else
         consume_identifier
         check_for_keyword
@@ -353,7 +359,9 @@ module ::Taro::Compiler
       if current_char == ' '
         skip_char
       end
-      until ['\n', '\0'].includes?(current_char); read_char; end
+      until ['\n', '\0'].includes?(current_char)
+        read_char
+      end
     end
 
     def consume_identifier
@@ -399,7 +407,7 @@ module ::Taro::Compiler
       @current_token.type = Token::Type::Char
       count = 0
       loop do
-        raise "Error char literal must be a single character - but got: `#{@analyzer.buffer_value}`" if count > 1 
+        raise "Error char literal must be a single character - but got: `#{@analyzer.buffer_value}`" if count > 1
         case current_char
         when '\0'
           # raise SyntaxError.new(current_location, "Unterminated char literal. Reached EOF without terminating.")
@@ -415,7 +423,7 @@ module ::Taro::Compiler
           count += 1
         end
       end
-    end  
+    end
 
     def read_string_token
       @current_token.type = Token::Type::String
@@ -477,6 +485,8 @@ module ::Taro::Compiler
         when "\\v"  then '\v'
         when "\\b"  then '\b'
         when "\\0"  then '\0'
+        else
+          # do nothing
         end
       end
     end
