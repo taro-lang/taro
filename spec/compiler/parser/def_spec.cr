@@ -31,7 +31,7 @@ describe "Def" do
     it_parses(source, FuncDef.new("main"))
   end
 
-  it "should allow nested modules" do
+  it "should allow nested functions" do
     source = <<-CODE
     def foo() : String {
       def bar() : String {  
